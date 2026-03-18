@@ -15,17 +15,14 @@ export default function App() {
   const [result, setResult] = useState(null);
 
   const callAI = async (messages) => {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: "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",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "meta-llama/llama-3-8b-instruct",
-        messages
-      })
-    });
+    fetch("/api/chat", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({ messages })
+  });
+     
 
     const data = await res.json();
     return data.choices?.[0]?.message?.content || "Error generating response";
