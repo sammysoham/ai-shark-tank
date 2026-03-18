@@ -1,0 +1,194 @@
+import React, { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { motion } from "framer-motion";
+
+export default function App() {
+  const [idea, setIdea] = useState("");
+  const [revenue, setRevenue] = useState("");
+  const [ask, setAsk] = useState("");
+  const [chat, setChat] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const callAI = async (messages) => {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "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",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "deepseek/deepseek-chat",
+        messages
+      })
+    });
+
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || "Error generating response";
+  };
+
+  const SYSTEM_PROMPT = `You are a brutally honest Shark Tank investor like Kevin O’Leary.
+
+Rules:
+- Be sharp, aggressive, and skeptical
+- Ask specific business questions (CAC, margins, competition)
+- Challenge weak ideas
+- Negotiate hard on equity
+- Keep responses short, punchy, slightly savage
+
+Behavior:
+- Ask follow-up questions
+- Push for numbers
+- If weak → roast hard
+- If strong → negotiate tough deal
+
+Sometimes:
+- Multiple investors compete
+- You completely destroy the founder
+- You give an unexpectedly high offer
+
+End condition:
+When conversation is done, output EXACTLY:
+FINAL: Investment ₹X for Y% equity | Score: Z/100 | Verdict: Deal or No Deal';
+
+  const startPitch = async () => {
+    if (!idea) return;
+    setLoading(true);
+
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Startup Idea: ${idea}\nRevenue: ${revenue || "unknown"}\nAsk: ${ask || "not specified"}`
+      }
+    ];
+
+    const aiReply = await callAI(messages);
+
+    setChat([
+      { role: "user", text: idea },
+      { role: "ai", text: aiReply }
+    ]);
+
+    setLoading(false);
+  };
+
+  const sendMessage = async () => {
+    if (!input) return;
+    setLoading(true);
+
+    const newChat = [...chat, { role: "user", text: input }];
+    setChat(newChat);
+    setInput("");
+
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...newChat.map((m) => ({
+        role: m.role === "ai" ? "assistant" : "user",
+        content: m.text
+      }))
+    ];
+
+    const aiReply = await callAI(messages);
+
+    const updatedChat = [...newChat, { role: "ai", text: aiReply }];
+    setChat(updatedChat);
+
+    if (aiReply.includes("FINAL:")) {
+      setResult(aiReply.split("FINAL:")[1].trim());
+    }
+
+    setLoading(false);
+  };
+
+  const copyResult = () => {
+    if (!result) return;
+    navigator.clipboard.writeText(`I faced the AI Shark Tank 💀 ${result}`);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-gray-100 to-gray-200">
+      <Card className="max-w-xl w-full p-6 rounded-2xl shadow-2xl">
+        <CardContent className="space-y-4">
+          <h1 className="text-3xl font-bold text-center">AI Shark Tank 💰</h1>
+
+          {!chat.length && (
+            <div className="space-y-3">
+              <Textarea
+                placeholder="Pitch your startup idea..."
+                value={idea}
+                onChange={(e) => setIdea(e.target.value)}
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Monthly Revenue (₹)"
+                  value={revenue}
+                  onChange={(e) => setRevenue(e.target.value)}
+                />
+                <Input
+                  placeholder="Investment Ask (₹)"
+                  value={ask}
+                  onChange={(e) => setAsk(e.target.value)}
+                />
+              </div>
+
+              <Button onClick={startPitch} className="w-full" disabled={loading}>
+                {loading ? "Thinking..." : "Start Pitch"}
+              </Button>
+            </div>
+          )}
+
+          {/* Chat Window */}
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {chat.map((msg, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`p-3 rounded-xl ${
+                  msg.role === "ai" ? "bg-red-100" : "bg-gray-200"
+                }`}
+              >
+                <strong>{msg.role === "ai" ? "Investor" : "You"}:</strong>
+                <p>{msg.text}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          {chat.length > 0 && (
+            <div className="flex gap-2">
+              <Input
+                placeholder="Reply to investor..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+              />
+              <Button onClick={sendMessage} disabled={loading}>
+                Send
+              </Button>
+            </div>
+          )}
+
+          {result && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="p-4 bg-green-100 rounded-xl text-center"
+            >
+              <strong className="text-lg">🔥 Final Deal</strong>
+              <p className="mt-2">{result}</p>
+              <Button onClick={copyResult} className="w-full mt-3">
+                Share Result 🚀
+              </Button>
+              <p className="text-xs mt-2 opacity-70">I faced the AI Shark Tank 💀</p>
+            </motion.div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
